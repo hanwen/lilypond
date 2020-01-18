@@ -967,6 +967,7 @@ PIDs or the number of the process."
                          #\nl))
                      files))))
   (if (and (number? (ly:get-option 'job-count))
+           (< 1 (ly:get-option 'job-count))
            (>= (length files) (ly:get-option 'job-count)))
       (let* ((count (ly:get-option 'job-count))
              (split-todo (split-list files count))
