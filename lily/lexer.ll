@@ -1025,8 +1025,10 @@ Lily_lexer::scan_scm_id (SCM sid)
 	return identifier_type (sid);
 }
 
+// Returns a token code, and populates `output` if there is a SCM
+// value associated.
 int
-Lily_lexer::scan_word (SCM & output, SCM sym)
+Lily_lexer::scan_word (SCM *output, SCM sym)
 {
 	if ((YYSTATE == notes) || (YYSTATE == chords)) {
 		SCM handle = SCM_BOOL_F;
@@ -1034,7 +1036,7 @@ Lily_lexer::scan_word (SCM & output, SCM sym)
 			handle = scm_hashq_get_handle (scm_cdar (pitchname_tab_stack_), sym);
 
 		if (scm_is_pair (handle)) {
-			output = scm_cdr (handle);
+			*output = scm_cdr (handle);
 			if (unsmob<Pitch> (yylval))
 	                    return (YYSTATE == notes) ? NOTENAME_PITCH : TONICNAME_PITCH;
 			else if (scm_is_symbol (yylval))
@@ -1043,18 +1045,18 @@ Lily_lexer::scan_word (SCM & output, SCM sym)
 		else if ((YYSTATE == chords)
 			&& scm_is_true (handle = scm_hashq_get_handle (chordmodifier_tab_, sym)))
 		{
-		    output = scm_cdr (handle);
+		    *output = scm_cdr (handle);
 		    return CHORD_MODIFIER;
 		}
 	}
-	output = SCM_UNDEFINED;
+	*output = SCM_UNDEFINED;
 	return -1;
 }
 
 int
 Lily_lexer::scan_bare_word (const string &str)
 {
-	int state = scan_word (yylval, ly_symbol2scm (str.c_str ()));
+	int state = scan_word (&yylval, ly_symbol2scm (str.c_str ()));
 	if (state >= 0)
 	{
 		return state;

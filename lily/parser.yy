@@ -4519,7 +4519,7 @@ make_music_from_simple (Lily_parser *parser, Input loc, SCM simple)
 	if (scm_is_symbol (simple))
 	{
 		SCM out = SCM_UNDEFINED;
-		switch (parser->lexer_->scan_word (out, simple))
+		switch (parser->lexer_->scan_word (&out, simple))
 		{
 		case DRUM_PITCH:
 		{
