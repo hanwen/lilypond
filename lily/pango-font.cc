@@ -17,18 +17,9 @@
   along with LilyPond.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Necessary for supporting pango_context_new() and
-// pango_context_set_font_map() in Pango < 1.22
-#define PANGO_ENABLE_BACKEND
-
 #include <pango/pangoft2.h>
 #include "freetype.hh"
 #include FT_XFREE86_H
-
-#include <map>
-#include <cstdio>
-
-// Ugh.
 
 #include "pango-font.hh"
 #include "dimensions.hh"
@@ -43,7 +34,6 @@
 #include "program-option.hh"
 #include "open-type-font.hh"
 
-#if HAVE_PANGO_FT2
 #include "stencil.hh"
 
 using std::string;
@@ -517,5 +507,3 @@ Pango_font::font_file_name () const
 {
   return SCM_BOOL_F;
 }
-
-#endif // HAVE_PANGO_FT2
