@@ -96,15 +96,10 @@ that this markup command is called by the newly defined command,
 adding its properties to the documented properties of the new
 command.  There is no protection against circular definitions.
 "
-  (let* ((command (if (pair? command-and-args)
-                      (car command-and-args)
-                      command-and-args))
-         (args (and (pair? command-and-args) (cdr command-and-args))))
-    (if args
-        `(,define-markup-command-internal
-           ',command (markup-lambda ,args ,@definition) #f)
-        `(,define-markup-command-internal
-           ',command ,@definition #f))))
+  (let* ((command (car command-and-args))
+         (args (cdr command-and-args)))
+    `(,define-markup-command-internal
+       ',command (markup-lambda ,args ,@definition) #f)))
 
 (defmacro*-public markup-lambda
   (args signature
@@ -157,15 +152,11 @@ not registering the markup command, this is identical to
   (command-and-args . definition)
   "Same as `define-markup-command', but defines a command that, when
 interpreted, returns a list of stencils instead of a single one"
-  (let* ((command (if (pair? command-and-args)
-                      (car command-and-args)
-                      command-and-args))
-         (args (and (pair? command-and-args) (cdr command-and-args))))
-    (if args
-        `(,define-markup-command-internal
-           ',command (markup-list-lambda ,args ,@definition) #t)
-        `(,define-markup-command-internal
-           ',command ,@definition #t))))
+  (let* ((command (car command-and-args))
+         (args (cdr command-and-args)))
+    `(,define-markup-command-internal
+       ',command (markup-list-lambda ,args ,@definition) #t)))
+
 
 (define (define-markup-command-internal command definition is-list)
   (let* ((suffix (if is-list "-list" ""))
