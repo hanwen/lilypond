@@ -107,7 +107,7 @@ endif
 # $(2) = target file, i.e. $@ in a recipe
 # $(3) = comment
 define ly_progress
-  $(call ly_info,$(1) $(subst $(configure-builddir)/,,$(abspath $(2))) $(3))
+  $(call ly_info, $(shell date +%T) $(shell cat /proc/loadavg | cut -f1 -d' ') $(1) $(subst $(configure-builddir)/,,$(abspath $(2))) $(3))
 endef
 
 all:
