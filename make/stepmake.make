@@ -28,13 +28,19 @@ include $(depth)/make/toplevel-version.make
 # suggested settings
 #
 # CPU_COUNT=2   ## for SMP/Multicore machine
-# 
+#
 -include $(depth)/local.make
 
 BUILD_VERSION=1
 
+top-build-dir := $(realpath $(depth) )
+build-dir := $(realpath  . )
 
-outdir=$(outroot)/$(outbase)
+tree-dir = $(subst $(top-build-dir),,$(build-dir))
+
+outdir=$(top-build-dir)/$(outbase)/$(tree-dir)
+
+outdir_for=$(top-build-dir)/$(outbase)/$(1)
 
 # why not generic ??
 config_h=$(top-build-dir)/config.hh

@@ -8,9 +8,12 @@ MODULE_INCLUDES= $(depth)/flower/include
 
 
 HELP2MAN_EXECS = lilypond
-STEPMAKE_TEMPLATES=c++ executable po help2man
+STEPMAKE_TEMPLATES=c++ po help2man
 
 include $(depth)/make/stepmake.make
+
+EXECUTABLE = $(outdir)/$(NAME)
+EXECUTABLES = $(notdir $(EXECUTABLE))
 
 ifeq ($(LINK_GXX_STATICALLY),yes)
 MODULE_LDFLAGS += -L$(outdir) -static-libgcc
@@ -46,7 +49,33 @@ endif
 ETAGS_FLAGS += --regex='{c++}/^LY_DEFINE *(\([^,]+\)/\1/'
 ETAGS_FLAGS += --regex='{c++}/^LY_DEFINE *([^"]*"\([^"]+\)"/\1/'
 
-default:
+default: $(EXECUTABLE)
+
+exe: $(EXECUTABLE)
+
+local-install: installexe
+
+local-uninstall: uninstallexe
+
+installexe: all
+	-$(INSTALLPY) -d $(DESTDIR)$(bindir)
+	$(foreach a, $(EXECUTABLES), \
+		$(INSTALLPY) -m 755 $(outdir)/$(a) \
+		$(DESTDIR)$(bindir)/$(program_prefix)$(a)$(program_suffix) && ) true
+	$(INSTALLPY) -c -m 755 $(addprefix $(outdir)/, $(SEXECUTABLES)) $(DESTDIR)$(bindir)
+
+uninstallexe:
+	$(foreach a, $(EXECUTABLES), rm -f \
+		$(DESTDIR)$(bindir)/$(program_prefix)$(a)$(program_suffix) && ) true
+	$(foreach a, $(SEXECUTABLES), rm -f $(DESTDIR)$(bindir)/$(a) &&) true
+
+
+FLOWER_LIB=$(call outdir_for,flower)/library.a
+
+$(EXECUTABLE): $(O_FILES) $(outdir)/version.hh $(FLOWER_LIB)
+	$(call ly_progress,Making,$@,)
+	make -C ../flower
+	$(CXX) $(ALL_CXXFLAGS) -o $@ $(O_FILES) $(FLOWER_LIB) $(CONFIG_LIBS) $(ALL_LDFLAGS)
 
 
 $(outdir)/libstdc++.a:
