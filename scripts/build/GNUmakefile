@@ -12,3 +12,5 @@ include $(depth)/make/stepmake.make
 
 all: $(INSTALLATION_FILES)
 
+local-check:
+	$(PYTHON) output-distance.py --test
