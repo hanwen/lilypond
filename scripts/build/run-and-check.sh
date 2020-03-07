@@ -15,11 +15,12 @@ eval $1 > $2 2>&1
 RetVal=$?
 if [ $RetVal -ne 0 ]; then
 	echo
-	echo "Please check the logfile"
+	echo "Exited with status $RetVal.  Check the logfile"
 	echo
 	echo "  $CurrDir/$2"
 	echo
-	echo "for errors"
+	echo "for errors. Last lines: "
 	echo
+	tail -20 "$CurrDir/$2"
 fi
 exit $RetVal
