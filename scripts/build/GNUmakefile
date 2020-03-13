@@ -15,6 +15,5 @@ include $(depth)/make/stepmake.make
 
 all: $(INSTALLATION_FILES)
 
-# TODO: run this during "make check"
-local-test-TODO: output-distance.py
+local-test: output-distance.py
 	$(PYTHON) $< --test --output-dir=$(outdir)
