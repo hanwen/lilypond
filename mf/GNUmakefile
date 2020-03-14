@@ -20,17 +20,7 @@ PFB_FILES = $(ALL_FONTS:%=$(outdir)/%.pfb)
 
 include $(depth)/make/stepmake.make
 
-.PHONY: tfm dvi pfb
-
-pfb: $(PFB_FILES)
-
-MF2PT1_OPTIONS=--rounding=0.0001 \
-               --family=$(notdir $(<:%.mf=%)) \
-               --fullname=$(notdir $(<:%.mf=%)) \
-               --name=$(notdir $(<:%.mf=%))
-
 # Don't remove $(outdir)/.log's.  Logs are a target!
-
 # we want to see botched results as well.
 $(outdir)/%.dvi: %.mf
 	$(call ly_progress,Making,$@,< mf)
@@ -42,33 +32,13 @@ $(outdir)/%.dvi: %.mf
 	mv $(basename $<).dvi $(outdir)
 	rm $(basename $<).*gf
 
-$(outdir)/%.tfm $(outdir)/%.log: %.mf
+$(outdir)/%.pfb: %.mf $(outdir)/mf2pt1.mem
 	$(call ly_progress,Making,$@,< mf)
-	$(DO_MF_DEP) \
-	  MFINPUTS=$(src-dir) \
-	  max_print_line=1000 \
-	  $(METAFONT) "\mode:=$(MFMODE); nonstopmode; input $<;" $(METAFONT_QUIET)
-# Let's keep this log output, it saves another mf run.
-	mv $(basename $(@F)).log $(basename $(@F)).tfm $(outdir)
-	rm -f $(basename $(@F)).*gf  $(basename $(@F)).*pk
+	$(DO_MF_DEP) $(src-dir)/invoke-mf2pt.sh $(buildscript-dir)/mf2pt1 $< $@ $(METAFONT_QUIET)
 
-# ugh . mf2pt1 is extremely broken, it pollutes CWD iso. creating a
-# temp dir.
-#
-# the soft link for mf2pt1.mp is for recent mpost versions
-# which no longer dump a .mem file
-$(outdir)/%.pfb: %.mf $(outdir)/mf2pt1.mem $(outdir)/%.log
-	$(call ly_progress,Making,$@,< mf)
-	$(DO_MF_DEP) TMP_DIR=`mktemp -d $(outdir)/pfbtemp.$*.XXXXXXXXX` \
-	&& ( cd $$TMP_DIR \
-		&& ln -s ../mf2pt1.mem . \
-		&& ln -s ../../mf2pt1.mp . \
-		&& MFINPUTS=$(abs-src-dir):..:: \
-		   FONTFORGE=$(FONTFORGE) \
-		   max_print_line=1000 \
-		   $(buildscript-dir)/mf2pt1 $(MF2PT1_OPTIONS) $< $(METAFONT_QUIET)) \
-	&& mv $$TMP_DIR/*pfb $(outdir); \
-	rm -rf $$TMP_DIR
+$(outdir)/%.tfm $(outdir)/%.log: $(outdir)/%.pfb
+	$(UPDATE_TARGET)
+
 
 # since recent mpost versions no longer create a mem file, we create a dummy
 # file to satisfy the dependency (which gets overwritten in case an older
@@ -85,30 +55,14 @@ else
 METAFONT_QUIET =
 endif
 
-# Find the metafont file $(1) within the source dirs and return its path.
-# If not found, return $(outdir)/$(1) assuming that it is a generated file.
-find-mf = \
-$(firstword \
-	$(wildcard $(src-dir)/$(1)) \
-	$(wildcard $(top-src-dir)/mf/$(1)) \
-	$(outdir)/$(1) \
-)
-
-# Recursively scan the metafont .mf file $(1) for "input X;"
-# and return all dependencies.
-scan-mf = \
-$(foreach f, $(shell test -f $(1) && sed -ne "/^[[:space:]]*input[[:space:]]/s/^[[:space:]]*input\([^.;]*\)\(.mf;\|;\)/\1.mf/p" $(1)), \
-	$(call find-mf,$(f)) \
-	$(call scan-mf,$(call find-mf,$(f))) \
-)
-
 # Find dependencies for the target $@, based on the metafont source file $<,
 # and write the dependencies to a .dep file. We cannot strip the extension of $@,
 # because we have multiple rules generating .dep files.
-DO_MF_DEP = ( echo ./$@: $(call scan-mf,$<) > $@.dep ) &&
+DO_MF_DEP = ( $(PYTHON) $(src-dir)/scan-mf-deps.py \
+  --target=$@ --include= --include=$(src-dir) --include=$(top-src-dir)/mf \
+  --include=$(outdir) $< > $@.dep ) &&
 
-
-EXTRA_DIST_FILES += README mf2pt1.mp
+EXTRA_DIST_FILES += README mf2pt1.mp invoke-mf2pt.sh scan-mf-deps.py
 
 STAFF_SIZES = 11 13 14 16 18 20 23 26
 BRACES = a b c d e f g h i
@@ -128,8 +82,6 @@ LILYPOND_FONTS_CONF = $(outdir)/00-lilypond-fonts.conf \
 
 LOG_FILES = $(FETA_MF_FILES:%.mf=$(outdir)/%.log)
 LISP_FILES = $(FETA_MF_FILES:%.mf=$(outdir)/%.lisp)
-ENC_FILES = $(FETA_MF_FILES:%.mf=$(outdir)/%.enc)
-TFM_FILES = $(FETA_MF_FILES:%.mf=$(outdir)/%.tfm)
 
 $(outdir)/emmentaler-brace.otf-gtable: $(BRACES:%=$(outdir)/feta-braces-%.otf-gtable)
 	$(call ly_progress,Making,$@,)
@@ -187,8 +139,6 @@ INSTALLATION_OUT_FILES2 = $(SVG_FILES) $(WOFF_FILES)
 INSTALLATION_OUT_DIR3 = $(local_lilypond_datadir)/fonts
 INSTALLATION_OUT_FILES3 = $(LILYPOND_FONTS_CONF)
 
-export MFINPUTS := .:$(MFINPUTS)
-
 # A few rules here generate multiple files from one command line.  For
 # treating this case, we only declare one output explicitly, and use a
 # dummy rules for the other outputs. The dummy rule uses
@@ -214,8 +164,6 @@ $(outdir)/%.lisp: $(outdir)/%.log $(outdir)/%.tfm
 $(outdir)/%.otf-gtable $(outdir)/%.enc: $(outdir)/%.lisp
 	$(UPDATE_TARGET)
 
-## Putting pfb here forces all .pfb fonts to be built before
-# fontforge starts generating emmentaler-*.* fonts.
 $(outdir)/emmentaler-%.otf: $(outdir)/emmentaler-%.genpe \
 			    $(outdir)/feta%.pfb \
 			    $(outdir)/feta-noteheads%.pfb \
@@ -224,8 +172,7 @@ $(outdir)/emmentaler-%.otf: $(outdir)/emmentaler-%.genpe \
 			    $(outdir)/parmesan%.pfb \
 			    $(outdir)/parmesan-noteheads%.pfb \
 			    $(outdir)/feta%.otf-table \
-			    $(outdir)/feta%.otf-gtable \
-			    | pfb
+			    $(outdir)/feta%.otf-gtable
 	$(call ly_progress,Making,$@,)
 	cd $(outdir) && $(FONTFORGE) -script $(notdir $<)
 
@@ -234,8 +181,7 @@ $(outdir)/emmentaler-%.svg $(outdir)/emmentaler-%.woff: $(outdir)/emmentaler-%.o
 
 $(outdir)/emmentaler-brace.otf: $(outdir)/emmentaler-brace.pe\
 		       $(foreach s,$(BRACES),$(outdir)/feta-braces-$(s).pfb) \
-		       $(outdir)/emmentaler-brace.otf-table $(outdir)/emmentaler-brace.otf-gtable \
-		       | pfb
+		       $(outdir)/emmentaler-brace.otf-table $(outdir)/emmentaler-brace.otf-gtable
 	$(call ly_progress,Making,$@,)
 	cd $(outdir) && $(FONTFORGE) -script emmentaler-brace.pe
 
