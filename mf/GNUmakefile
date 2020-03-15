@@ -83,42 +83,7 @@ LILYPOND_FONTS_CONF = $(outdir)/00-lilypond-fonts.conf \
 LOG_FILES = $(FETA_MF_FILES:%.mf=$(outdir)/%.log)
 LISP_FILES = $(FETA_MF_FILES:%.mf=$(outdir)/%.lisp)
 
-$(outdir)/emmentaler-brace.otf-gtable: $(BRACES:%=$(outdir)/feta-braces-%.otf-gtable)
-	$(call ly_progress,Making,$@,)
-	echo '(design_size . 20)' > $@
-
-$(outdir)/feta%.otf-table: $(outdir)/feta%.lisp $(outdir)/parmesan%.lisp \
-	$(outdir)/parmesan-noteheads%.lisp \
-	$(outdir)/feta-noteheads%.lisp \
-	$(outdir)/feta-flags%.lisp \
-	$(outdir)/feta-alphabet%.lisp
-	$(call ly_progress,Making,$@,< lisp)
-	cat $^ > $@
-
-$(outdir)/emmentaler-brace.otf-table: $(foreach x, a b c d e f g h i,$(outdir)/feta-braces-$(x).lisp)
-	$(call ly_progress,Making,$@,< lisp)
-	cat $^ > $@
-
-$(outdir)/emmentaler-brace.otf: $(outdir)/emmentaler-brace.subfonts \
-				$(outdir)/emmentaler-brace.fontname \
-				$(outdir)/emmentaler-brace.otf-table \
-				$(outdir)/emmentaler-brace.otf-gtable \
-				$(outdir)/emmentaler-brace.pe
-
-$(outdir)/emmentaler-brace.fontname:
-	$(call ly_progress,Making,$@,)
-	printf 'emmentaler-brace' > $@
-
-$(outdir)/emmentaler-brace.subfonts:
-	$(call ly_progress,Making,$@,)
-	echo $(subst .mf,,$(call src-wildcard,feta-braces-[a-z].mf)) > $@
-
-$(outdir)/emmentaler-%.genpe: $(buildscript-dir)/gen-emmentaler-scripts
-	$(call ly_progress,Making,$@,)
-	$< --dir=$(outdir) --design-size=$(patsubst emmentaler-%.genpe,%,$(notdir $@))
-
-ALL_GEN_FILES = $(ENC_FILES) \
-		$(OTF_FILES) \
+ALL_GEN_FILES = $(OTF_FILES) \
 		$(SVG_FILES) \
 		$(WOFF_FILES) \
 		$(LILYPOND_FONTS_CONF)
@@ -146,6 +111,7 @@ INSTALLATION_OUT_FILES3 = $(LILYPOND_FONTS_CONF)
 # not confuse make.
 UPDATE_TARGET = if test -f $@; then touch $@ ; fi
 
+
 # only for fonts which
 #
 # 1. are mentioned in font.scm
@@ -155,39 +121,37 @@ UPDATE_TARGET = if test -f $@; then touch $@ ; fi
 $(outdir)/%.lisp: $(outdir)/%.log $(outdir)/%.tfm
 	$(call ly_progress,Making,$@,< log)
 	$(buildscript-dir)/mf-to-table \
-		--global-lisp=$(outdir)/$(<F:.log=.otf-gtable) \
+		--global-lisp=$(outdir)/$(<F:.log=.global-lisp) \
 		--lisp=$(outdir)/$(<F:.log=.lisp) \
-		--outdir=$(outdir) \
-		--enc $(outdir)/$(<F:.log=.enc) \
 		$<
 
-$(outdir)/%.otf-gtable $(outdir)/%.enc: $(outdir)/%.lisp
+$(outdir)/%.global-lisp: $(outdir)/%.lisp
 	$(UPDATE_TARGET)
 
-## Putting pfb here forces all .pfb fonts to be built before
-# fontforge starts generating emmentaler-*.* fonts.
-$(outdir)/emmentaler-%.otf: $(outdir)/emmentaler-%.genpe \
-			    $(outdir)/feta%.pfb \
+$(outdir)/emmentaler-%.otf: gen-emmentaler.fontforge.py $(outdir)/feta%.pfb \
 			    $(outdir)/feta-noteheads%.pfb \
 			    $(outdir)/feta-flags%.pfb \
 			    $(outdir)/feta-alphabet%.pfb \
 			    $(outdir)/parmesan%.pfb \
 			    $(outdir)/parmesan-noteheads%.pfb \
-			    $(outdir)/feta%.otf-table \
-			    $(outdir)/feta%.otf-gtable \
-			    | pfb
+			    $(outdir)/feta%.lisp \
+			    $(outdir)/feta-noteheads%.lisp \
+			    $(outdir)/feta-flags%.lisp \
+			    $(outdir)/feta-alphabet%.lisp \
+			    $(outdir)/parmesan%.lisp \
+			    $(outdir)/parmesan-noteheads%.lisp \
+			    $(outdir)/feta%.global-lisp
 	$(call ly_progress,Making,$@,)
-	cd $(outdir) && $(FONTFORGE) -script $(notdir $<)
+	$(FONTFORGE) -lang=py -script $< --version=$(VERSION) --in $(outdir)/ --out $@
 
 $(outdir)/emmentaler-%.svg $(outdir)/emmentaler-%.woff: $(outdir)/emmentaler-%.otf
 	$(UPDATE_TARGET)
 
-$(outdir)/emmentaler-brace.otf: $(outdir)/emmentaler-brace.pe\
-		       $(foreach s,$(BRACES),$(outdir)/feta-braces-$(s).pfb) \
-		       $(outdir)/emmentaler-brace.otf-table $(outdir)/emmentaler-brace.otf-gtable \
-		       | pfb
+$(outdir)/emmentaler-brace.otf: gen-emmentaler-brace.fontforge.py \
+		$(foreach s,$(BRACES),$(outdir)/feta-braces-$(s).pfb) \
+		$(foreach s,$(BRACES),$(outdir)/feta-braces-$(s).lisp)
 	$(call ly_progress,Making,$@,)
-	cd $(outdir) && $(FONTFORGE) -script emmentaler-brace.pe
+	$(FONTFORGE) -lang=py -script $< --version $(VERSION) --out=$@ --in $(outdir)
 
 $(outdir)/emmentaler-brace.svg $(outdir)/emmentaler-brace.woff: $(outdir)/emmentaler-brace.otf
 	$(UPDATE_TARGET)
@@ -200,11 +164,9 @@ default: tree-regen \
 tree-regen: $(ALL_GEN_FILES)
 	${MAKE} -C $(top-build-dir) link-mf-tree
 
-
 local-clean:
 	rm -f mfplain.mem mfplain.log
 	rm -f *.tfm *.log
-
 
 $(outdir)/fonts.conf:
 	$(call ly_progress,Making,$@,)
