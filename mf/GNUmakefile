@@ -118,12 +118,9 @@ UPDATE_TARGET = if test -f $@; then touch $@ ; fi
 #
 # 2. are not included with teTeX
 #
-$(outdir)/%.lisp: $(outdir)/%.log $(outdir)/%.tfm
+$(outdir)/%.lisp: $(outdir)/%.log
 	$(call ly_progress,Making,$@,< log)
-	$(buildscript-dir)/mf-to-table \
-		--global-lisp=$(outdir)/$(<F:.log=.global-lisp) \
-		--lisp=$(outdir)/$(<F:.log=.lisp) \
-		$<
+	$(buildscript-dir)/mf-to-table $<
 
 $(outdir)/%.global-lisp: $(outdir)/%.lisp
 	$(UPDATE_TARGET)

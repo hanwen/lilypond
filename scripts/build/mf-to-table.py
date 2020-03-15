@@ -19,10 +19,10 @@
 # You should have received a copy of the GNU General Public License
 # along with LilyPond.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
-import sys
 import getopt
+import os
 import re
+import sys
 import time
 
 def read_log_file (fn):
@@ -159,25 +159,10 @@ def global_lisp_table (global_info):
     return str
 
 
-(options, files) = \
- getopt.getopt (sys.argv[1:], '',
-        ['lisp=', 'global-lisp=', ])
+for name in sys.argv[1:]:
+    global_lisp_nm = re.sub('.log$', '.global-lisp', name)
+    char_lisp_nm = re.sub( '.log$', '.lisp', name)
 
-global_lisp_nm = ''
-char_lisp_nm = ''
-
-for opt in options:
-    o = opt[0]
-    a = opt[1]
-    if o == '--lisp':
-        char_lisp_nm = a
-    elif o == '--global-lisp':
-        global_lisp_nm = a
-    else:
-        print(o)
-        raise getopt.error
-
-for filenm in files:
-    g, m = parse_logfile (filenm)
+    g, m = parse_logfile (name)
     open (char_lisp_nm, 'w').write (character_lisp_table (g, m))
     open (global_lisp_nm, 'w').write (global_lisp_table (g))
