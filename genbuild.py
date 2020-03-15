@@ -66,8 +66,16 @@ class Gen:
         self.build("at_substitute", [out], [input])
 
     def mf_to_pfb(self, input):
-        out = subst_ext(input, ".mf", ".pfb")
-        self.build("mf_to_pfb", [out], [input], implicit_inputs=["scripts/build/mf2pt1"])
+        self.build("mf_to_pfb", [
+            subst_ext(input, ".mf", ".pfb"),
+            subst_ext(input, ".mf", ".tfm"),
+            subst_ext(input, ".mf", ".log"),
+        ], [input], implicit_inputs=["scripts/build/mf2pt1"])
+        self.build("mflog_to_lisp",
+                   [subst_ext(input, ".mf", ".lisp"),
+                    subst_ext(input, ".mf", ".global-lisp")],
+                   [subst_ext(input, ".mf", ".log")],
+                   implicit_inputs=["scripts/build/mf-to-table"])
 
 
 atvars = [
@@ -129,6 +137,10 @@ build version.hh: make-version ../VERSION
 
 rule mf_to_pfb
   command = mf/invoke-mf2pt.sh scripts/build/mf2pt1 $in $out
+
+rule mflog_to_lisp
+  command = scripts/build/mf-to-table $in
+
 
 """
 
