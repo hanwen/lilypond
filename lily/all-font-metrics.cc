@@ -45,12 +45,11 @@ All_font_metrics::get_index_to_charcode_map (const string &filename,
 All_font_metrics::All_font_metrics (const string &path)
 {
   pango_dict_ = 0;
-
   otf_dict_ = 0;
   smobify_self ();
   otf_dict_ = unsmob<Scheme_hash_table> (Scheme_hash_table::make_smob ());
-
   pango_dict_ = unsmob<Scheme_hash_table> (Scheme_hash_table::make_smob ());
+
   PangoFontMap *pfm = pango_ft2_font_map_new ();
 
   pango_ft2_fontmap_ = PANGO_FT2_FONT_MAP (pfm);

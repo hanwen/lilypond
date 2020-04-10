@@ -29,7 +29,6 @@
   Smobs are GUILEs mechanism of exporting C(++) objects to the Scheme
   world.  They are documented in the GUILE manual.
 
-
   In LilyPond, C++ objects can be placed under the control of GUILE's
   type system and garbage collection mechanism by inheriting from one
   of several Smob base classes.

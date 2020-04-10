@@ -23,15 +23,79 @@
 #include "small-smobs.hh"
 
 /*
-  hash table.
-
-  Used for looking up keys by SCM value (keys compared with eq?).
-  This is not much more than a C++ wrapper around a standard Guile hashtable.
+  Used for looking up symbol keyed values.
 */
-
-class Scheme_hash_table : public Smob1<Scheme_hash_table>
+class Scheme_hash_table : public Smob<Scheme_hash_table>
 {
+  struct Entry {
+    // A free entry is indicated by NULL (which is assumed to never
+    // coincide with a symbol).  This is correct in GUILE 1.8. For 2.x
+    // and beyond, the GUILE API promises to use the Boehm GC, so
+    // values are considered pointers too.  Note that we take care to
+    // never pass NULL back to GUILE.
+    SCM key;
+    SCM val;
+  };
+
+  Entry *table_;
+  size_t count_;
+  size_t cap_;
+
+  void maybe_grow();
+  bool find_entry(SCM key, size_t *idx) const;
+  static uintptr_t hash(SCM key);
+  static Entry empty_entry;
+  void internal_set(SCM key, SCM val);
 public:
+  class Iterator {
+    const Scheme_hash_table *tab_;
+    size_t idx_;
+
+    void skip() {
+      while (ok()) {
+        if (tab_->table_[idx_].key != NULL) {
+          break;
+        }
+        idx_++;
+      }
+    }
+
+    Iterator(Scheme_hash_table const& t) {
+      tab_ = &t;
+      idx_ = 0;
+      skip();
+    }
+    friend class Scheme_hash_table;
+
+  public:
+    bool ok() const {
+      return idx_ < tab_->cap_;
+    }
+
+    void next() {
+      idx_++;
+      skip();
+    }
+
+    SCM key() {
+      return tab_->table_[idx_].key;
+    }
+
+    SCM val() {
+      return tab_->table_[idx_].val;
+    }
+  };
+
+  Iterator iter() const {
+    return Iterator(*this);
+  }
+
+  Scheme_hash_table(size_t initial_size = 0);
+  ~Scheme_hash_table();
+  size_t size() const { return count_; }
+  void clear();
+  void swap(Scheme_hash_table*);
+  void merge_from(Scheme_hash_table const*);
   int print_smob (SCM, scm_print_state *) const;
   bool try_retrieve (SCM key, SCM *val);
   bool contains (SCM key) const;
@@ -40,10 +104,8 @@ public:
   void remove (SCM k);
   void operator = (Scheme_hash_table const &);
   SCM to_alist () const;
+  SCM mark_smob () const;
   static SCM make_smob ();
-
-private:
-  SCM &hash_tab () const { return scm1 (); }
 };
 
 #endif /* SCM_HASH_HH */
