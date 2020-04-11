@@ -25,6 +25,7 @@
 #include "dimension-cache.hh"
 #include "grob-interface.hh"
 #include "lily-proto.hh"
+#include "mutable-properties.hh"
 
 #include <set>
 
@@ -48,8 +49,8 @@ protected:
 
   /* SCM data */
   SCM immutable_property_alist_;
-  SCM mutable_property_alist_;
-  SCM object_alist_;
+  Mutable_properties mutable_property_dict_;
+  Mutable_properties object_dict_;
 
   /*
     If this is a property, it accounts for 25% of the property
@@ -57,11 +58,11 @@ protected:
   */
   SCM interfaces_;
 
-  void substitute_object_links (SCM, SCM);
+  void substitute_object_links (SCM, Mutable_properties*);
   Real get_offset (Axis a) const;
   SCM try_callback (SCM, SCM);
-  SCM try_callback_on_alist (SCM *, SCM, SCM);
-  void internal_set_value_on_alist (SCM *alist, SCM sym, SCM val);
+  SCM try_callback_on_dict (Mutable_properties *, SCM, SCM);
+  void internal_set_value_on_dict (Mutable_properties *dict, SCM sym, SCM val);
 
 public:
 

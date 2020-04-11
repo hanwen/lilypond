@@ -28,9 +28,11 @@
 #include "input.hh"
 #include "international.hh"
 #include "item.hh"
+#include "lily-imports.hh"
 #include "main.hh"
 #include "misc.hh"
 #include "music.hh"
+#include "mutable-properties.hh"
 #include "output-def.hh"
 #include "pointer-group-interface.hh"
 #include "program-option.hh"
@@ -39,7 +41,6 @@
 #include "system.hh"
 #include "unpure-pure-container.hh"
 #include "warn.hh"
-#include "lily-imports.hh"
 
 using std::set;
 using std::string;
@@ -53,14 +54,11 @@ Grob::clone () const
 
 Grob::Grob (SCM basicprops)
 {
-
   /* FIXME: default should be no callback.  */
   layout_ = 0;
   original_ = 0;
   interfaces_ = SCM_EOL;
   immutable_property_alist_ = basicprops;
-  mutable_property_alist_ = SCM_EOL;
-  object_alist_ = SCM_EOL;
 
   /* We do smobify_self () as the first step.  Since the object lives
      on the heap, none of its SCM variables are protected from
@@ -102,20 +100,19 @@ Grob::Grob (Grob const &s)
   original_ = (Grob *) & s;
 
   immutable_property_alist_ = s.immutable_property_alist_;
-  mutable_property_alist_ = SCM_EOL;
 
   for (Axis a = X_AXIS; a < NO_AXES; incr (a))
     dim_cache_ [a] = s.dim_cache_ [a];
 
   interfaces_ = s.interfaces_;
-  object_alist_ = SCM_EOL;
 
   layout_ = 0;
 
   smobify_self ();
 
-  mutable_property_alist_ = ly_deep_copy (s.mutable_property_alist_);
-
+  // TODO - this did ly_deep_copy() before. Should we do a real deep
+  // copy?
+  mutable_property_dict_.merge_from (s.mutable_property_dict_);
 }
 
 Grob::~Grob ()
@@ -250,8 +247,8 @@ Grob::handle_broken_dependencies ()
        because some Spanners have enormously long lists in their
        properties, and a special function fixes FOO  */
     {
-      for (SCM s = object_alist_; scm_is_pair (s); s = scm_cdr (s))
-        sp->substitute_one_mutable_property (scm_caar (s), scm_cdar (s));
+      for (auto it = object_dict_.iter (); it.ok (); it.next ())
+        sp->substitute_one_mutable_property (it.key (), it.val ());
     }
   System *system = get_system ();
 
@@ -259,9 +256,9 @@ Grob::handle_broken_dependencies ()
       && system
       && common_refpoint (system, X_AXIS)
       && common_refpoint (system, Y_AXIS))
-    substitute_object_links (system->self_scm (), object_alist_);
+    substitute_object_links (system->self_scm (), &object_dict_);
   else if (dynamic_cast<System *> (this))
-    substitute_object_links (SCM_UNDEFINED, object_alist_);
+    substitute_object_links (SCM_UNDEFINED, &object_dict_);
   else
     /* THIS element is `invalid'; it has been removed from all
        dependencies, so let's junk the element itself.
@@ -285,8 +282,8 @@ Grob::suicide ()
   for (int a = X_AXIS; a < NO_AXES; a++)
     dim_cache_[a].clear ();
 
-  mutable_property_alist_ = SCM_EOL;
-  object_alist_ = SCM_EOL;
+  mutable_property_dict_.clear ();
+  object_dict_.clear ();
   immutable_property_alist_ = SCM_EOL;
   interfaces_ = SCM_EOL;
 }
@@ -300,7 +297,7 @@ Grob::handle_prebroken_dependencies ()
     {
       Item *it = dynamic_cast<Item *> (this);
       substitute_object_links (scm_from_int (it->break_status_dir ()),
-                               original ()->object_alist_);
+                               &original ()->object_dict_);
     }
 }
 

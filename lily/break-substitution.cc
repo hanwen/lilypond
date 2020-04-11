@@ -20,9 +20,10 @@
 #include <cstdio>
 #include <cstdlib>
 
-#include "item.hh"
-#include "system.hh"
 #include "grob-array.hh"
+#include "item.hh"
+#include "mutable-properties.hh"
+#include "system.hh"
 
 using std::vector;
 
@@ -307,7 +308,6 @@ Spanner::fast_substitute_grob_array (SCM sym,
                                      Grob_array *grob_array)
 {
   int len = grob_array->size ();
-
   if (grob_array->ordered ())
     return false;
 
@@ -437,23 +437,23 @@ Spanner::fast_substitute_grob_array (SCM sym,
   This becomes a problem if lily is linked against guile with
   pthreads. pthreads impose small limits on the stack size.
 */
-SCM
-substitute_object_alist (SCM alist, SCM dest)
+void
+substitute_object_dict (Mutable_properties *orig, Mutable_properties *dest)
 {
-  SCM l = SCM_EOL;
-  SCM *tail = &l;
-  for (SCM s = alist; scm_is_pair (s); s = scm_cdr (s))
+  Mutable_properties fresh;
+
+  for (auto it = orig->iter (); it.ok (); it.next ())
     {
-      SCM sym = scm_caar (s);
-      SCM val = scm_cdar (s);
+      SCM sym = it.key ();
+      SCM val = it.val ();
 
       if (Grob_array *orig = unsmob<Grob_array> (val))
         {
-          SCM handle = scm_assq (sym, dest);
-          SCM newval
-            = (scm_is_pair (handle))
-              ? scm_cdr (handle)
-              : Grob_array::make_array ();
+          SCM newval;
+          if (!dest->try_retrieve (sym, &newval))
+            {
+              newval = Grob_array::make_array ();
+            }
 
           Grob_array *new_arr = unsmob<Grob_array> (newval);
           // TODO: What if new_arr is null?
@@ -469,11 +469,11 @@ substitute_object_alist (SCM alist, SCM dest)
             for ly:grob? properties, SCM_UNDEFINED could leak out
             through ly:grob-property
           */
-          *tail = scm_cons (scm_cons (sym, val), SCM_EOL);
-          tail = SCM_CDRLOC (*tail);
+          fresh.set (sym, val);
         }
     }
-  return l;
+
+  fresh.swap (dest);
 }
 
 void
@@ -509,8 +509,8 @@ Spanner::substitute_one_mutable_property (SCM sym, SCM val)
 }
 
 void
-Grob::substitute_object_links (SCM crit, SCM orig)
+Grob::substitute_object_links (SCM crit, Mutable_properties *orig)
 {
   set_break_substitution (crit);
-  object_alist_ = substitute_object_alist (orig, object_alist_);
+  substitute_object_dict (orig, &object_dict_);
 }

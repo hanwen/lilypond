@@ -19,6 +19,7 @@
 
 #include "grob.hh"
 
+#include "mutable-properties.hh"
 #include "paper-score.hh"
 #include "warn.hh"
 
@@ -42,10 +43,9 @@ Grob::mark_smob () const
     scm_gc_mark (original ()->self_scm ());
 
   derived_mark ();
-  scm_gc_mark (object_alist_);
-  scm_gc_mark (interfaces_);
-
-  return mutable_property_alist_;
+  mutable_property_dict_.mark ();
+  object_dict_.mark ();
+  return interfaces_;
 }
 
 int
