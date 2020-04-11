@@ -37,15 +37,17 @@ class Scheme_hash_table : public Smob<Scheme_hash_table>
     SCM val;
   };
 
-  Entry *table_;
+  SCM *values_;
+  uint16_t *keys_;
   size_t count_;
   size_t cap_;
 
+  void alloc (size_t);
   void maybe_grow();
-  bool find_entry(SCM key, size_t *idx) const;
-  static uintptr_t hash(SCM key);
+  bool find_entry(uint16_t key, size_t *idx) const;
+  static uint16_t hash(SCM key);
   static Entry empty_entry;
-  void internal_set(SCM key, SCM val);
+  void internal_set(uint16_t key, SCM val);
 public:
   class Iterator {
     const Scheme_hash_table *tab_;
@@ -53,7 +55,7 @@ public:
 
     void skip() {
       while (ok()) {
-        if (tab_->table_[idx_].key != NULL) {
+        if (tab_->keys_[idx_]) {
           break;
         }
         idx_++;
@@ -77,12 +79,9 @@ public:
       skip();
     }
 
-    SCM key() {
-      return tab_->table_[idx_].key;
-    }
-
-    SCM val() {
-      return tab_->table_[idx_].val;
+    SCM key() const;
+    SCM val() const {
+      return tab_->values_[idx_];
     }
   };
 

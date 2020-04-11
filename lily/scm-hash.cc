@@ -19,23 +19,38 @@
 
 #include "scm-hash.hh"
 #include "benchmark-timestamp.hh"
+#include "protected-scm.hh"
 #include "string-convert.hh"
 
 #include <cassert>
 
-Scheme_hash_table::~Scheme_hash_table () { free (table_); }
+using std::vector;
+
+static size_t primes[] = {3,   7,    17,   19,   31,   61,    127,   257,
+                          511, 1023, 1759, 3517, 7027, 14051, 28099, 56197};
+
+Scheme_hash_table::~Scheme_hash_table () { free (values_); }
 
 Scheme_hash_table::Scheme_hash_table (size_t initial_size)
 {
-  table_ = NULL;
+  keys_ = NULL;
+  values_ = NULL;
   count_ = 0;
   cap_ = 0;
   smobify_self ();
   if (initial_size > 0)
     {
-      cap_ = initial_size;
-      table_ = (Entry *) calloc (cap_, sizeof (Entry));
+      alloc (initial_size);
     }
+}
+
+void
+Scheme_hash_table::alloc (size_t cap)
+{
+  size_t sz = cap * (sizeof (SCM) + sizeof (uint16_t));
+  values_ = (SCM *) calloc (sz, 1);
+  keys_ = (uint16_t *) &values_[cap];
+  cap_ = cap;
 }
 
 void
@@ -43,13 +58,16 @@ Scheme_hash_table::swap (Scheme_hash_table *other)
 {
   size_t count = count_;
   size_t cap = cap_;
-  Entry *tab = table_;
+  SCM *values = values_;
+  uint16_t *keys = keys_;
 
-  table_ = other->table_;
+  values_ = other->values_;
+  keys_ = other->keys_;
   cap_ = other->cap_;
   count_ = other->count_;
 
-  other->table_ = tab;
+  other->values_ = values;
+  other->keys_ = keys;
   other->cap_ = cap;
   other->count_ = count;
 }
@@ -57,7 +75,7 @@ Scheme_hash_table::swap (Scheme_hash_table *other)
 void
 Scheme_hash_table::clear ()
 {
-  memset (table_, 0, sizeof (Entry) * cap_);
+  memset (keys_, 0, sizeof (uint16_t) * cap_);
   count_ = 0;
 }
 
@@ -74,43 +92,55 @@ Scheme_hash_table::maybe_grow ()
   // control the time/space tradeoff.
   size_t newcap = 2 * cap_ + 1;
   size_t old_count = count_;
-  Entry *old_table = table_;
+  SCM *old_vals = values_;
+  uint16_t *old_keys = keys_;
 
-  table_ = (Entry *) calloc (newcap, sizeof (Entry));
+  alloc (newcap);
   // subtle: if using scm_gc_calloc, must assign after alloc, because
   // alloc can trigger GC, and mark will inspect cap_.
-  cap_ = newcap;
   count_ = 0;
   for (size_t i = 0; i < oldcap; i++)
     {
-      if (old_table[i].key != NULL)
+      if (old_keys[i])
         {
-          internal_set (old_table[i].key, old_table[i].val);
+          internal_set (old_keys[i], old_vals[i]);
         }
     }
   assert (old_count == count_);
-  free (old_table);
+  free (old_vals);
 }
 
-uintptr_t
+Protected_scm key_hash;
+vector<SCM> int_to_key;
+
+SCM
+Scheme_hash_table::Iterator::key () const
+{
+  return int_to_key[tab_->keys_[idx_]];
+}
+
+uint16_t
 Scheme_hash_table::hash (SCM key)
 {
-  uintptr_t x = SCM_UNPACK (key);
+  if (!key_hash.is_bound ())
+    key_hash = scm_c_make_hash_table (1023);
+  SCM tab = key_hash;
 
-  // see
-  // https://stackoverflow.com/questions/664014/what-integer-hash-function-are-good-that-accepts-an-integer-hash-key
-#if SCM_SIZEOF_UINTPTR_T == 4
-  x = ((x >> 16) ^ x) * 0x45d9f3b;
-  x = ((x >> 16) ^ x) * 0x45d9f3b;
-  x = (x >> 16) ^ x;
-#elif SCM_SIZEOF_UINTPTR_T == 8
-  x = (x ^ (x >> 30)) * UINT64_C (0xbf58476d1ce4e5b9);
-  x = (x ^ (x >> 27)) * UINT64_C (0x94d049bb133111eb);
-  x = x ^ (x >> 31);
-#else
-#error unsupported word size
-#endif
-  return x;
+  SCM val = scm_hashq_ref (tab, key, SCM_BOOL_F);
+  if (scm_is_integer (val))
+    {
+      return uint16_t (scm_to_int (val));
+    }
+
+  // The first key will be 1.
+  uint16_t n = uint16_t (SCM_HASHTABLE_N_ITEMS (tab) + 1);
+  while (int_to_key.size () <= n)
+    {
+      int_to_key.push_back (key);
+    }
+
+  scm_hashq_set_x (key_hash, key, scm_from_int (n));
+  return n;
 }
 
 SCM
@@ -118,10 +148,9 @@ Scheme_hash_table::mark_smob () const
 {
   for (size_t i = 0; i < cap_; i++)
     {
-      if (table_[i].key != NULL)
+      if (keys_[i])
         {
-          scm_gc_mark (table_[i].key);
-          scm_gc_mark (table_[i].val);
+          scm_gc_mark (values_[i]);
         }
     }
   return SCM_EOL;
@@ -131,22 +160,22 @@ Scheme_hash_table::mark_smob () const
    inserting, there should be at least one entry free.
  */
 bool
-Scheme_hash_table::find_entry (SCM key, size_t *idx) const
+Scheme_hash_table::find_entry (uint16_t key, size_t *idx) const
 {
   if (cap_ == 0)
     {
       return false;
     }
-  *idx = size_t (hash (key) % cap_);
+  *idx = size_t (key % cap_);
   size_t start = *idx;
   do
     {
-      if (table_[*idx].key == NULL)
+      if (keys_[*idx] == 0)
         {
           return false;
         }
 
-      if (scm_is_eq (table_[*idx].key, key))
+      if (keys_[*idx] == key)
         {
           return true;
         }
@@ -166,8 +195,10 @@ Scheme_hash_table::remove (SCM k)
     {
       return;
     }
+
+  uint16_t k16 = hash (k);
   size_t start = 0;
-  if (!find_entry (k, &start))
+  if (!find_entry (k16, &start))
     {
       return;
     }
@@ -175,7 +206,7 @@ Scheme_hash_table::remove (SCM k)
   count_--;
 
   // Clear the entry
-  table_[start] = empty_entry;
+  keys_[start] = 0;
 
   // See https://en.wikipedia.org/wiki/Linear_probing#Deletion. In
   // linear probing, the collisions appear in clusters. By removing,
@@ -186,13 +217,13 @@ Scheme_hash_table::remove (SCM k)
   for (size_t next = (start + 1) % cap_; next != start;
        next = (next + 1) % cap_)
     {
-      SCM nk = table_[next].key;
-      if (nk == NULL)
+      uint16_t nk = keys_[next];
+      if (nk == 0)
         {
           return;
         }
 
-      size_t j = size_t (hash (nk) % cap_);
+      size_t j = size_t (nk % cap_);
       if (j == next)
         {
           // this one wasn't moved, so leave it alone
@@ -214,9 +245,11 @@ Scheme_hash_table::remove (SCM k)
 
       if (move)
         {
-          table_[gap] = table_[next];
-          table_[next] = empty_entry;
+          values_[gap] = values_[next];
+          keys_[gap] = keys_[next];
           gap = next;
+          values_[gap] = NULL;
+          keys_[gap] = 0;
         }
     }
 
@@ -239,9 +272,10 @@ Scheme_hash_table::try_retrieve (SCM k, SCM *v)
 {
   assert (scm_is_symbol (k));
   size_t idx = 0;
-  if (find_entry (k, &idx))
+  uint16_t k16 = hash (k);
+  if (find_entry (k16, &idx))
     {
-      *v = table_[idx].val;
+      *v = values_[idx];
       return true;
     }
 
@@ -252,8 +286,9 @@ bool
 Scheme_hash_table::contains (SCM k) const
 {
   assert (scm_is_symbol (k));
+  uint16_t k16 = hash (k);
   size_t unused;
-  return find_entry (k, &unused);
+  return find_entry (k16, &unused);
 }
 
 void
@@ -261,7 +296,9 @@ Scheme_hash_table::set (SCM k, SCM v)
 {
   assert (scm_is_symbol (k));
   maybe_grow ();
-  internal_set (k, v);
+  uint16_t k16 = hash (k);
+
+  internal_set (k16, v);
 }
 
 void
@@ -274,25 +311,25 @@ Scheme_hash_table::merge_from (Scheme_hash_table const *src)
 }
 
 void
-Scheme_hash_table::internal_set (SCM k, SCM v)
+Scheme_hash_table::internal_set (uint16_t k16, SCM v)
 {
   size_t idx = 0;
-  find_entry (k, &idx);
-  if (table_[idx].key == NULL)
+  find_entry (k16, &idx);
+  if (keys_[idx] == 0)
     {
       count_++;
     }
-  table_[idx].key = k;
-  table_[idx].val = v;
+  keys_[idx] = k16;
+  values_[idx] = v;
 }
 
 SCM
 Scheme_hash_table::get (SCM k) const
 {
   size_t i;
-  if (find_entry (k, &i))
+  if (find_entry (hash (k), &i))
     {
-      return table_[i].val;
+      return values_[i];
     }
 
   return SCM_UNDEFINED;
