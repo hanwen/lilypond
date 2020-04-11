@@ -20,6 +20,7 @@
 #include "grob.hh"
 
 #include "paper-score.hh"
+#include "scm-hash.hh"
 #include "warn.hh"
 
 const char *const Grob::type_p_name_ = "ly:grob?";
@@ -42,10 +43,15 @@ Grob::mark_smob () const
     scm_gc_mark (original ()->self_scm ());
 
   derived_mark ();
-  scm_gc_mark (object_alist_);
-  scm_gc_mark (interfaces_);
-
-  return mutable_property_alist_;
+  if (mutable_property_dict_ != NULL)
+    {
+      scm_gc_mark (mutable_property_dict_->self_scm ());
+    }
+  if (object_dict_ != NULL)
+    {
+      scm_gc_mark (object_dict_->self_scm ());
+    }
+  return interfaces_;
 }
 
 int

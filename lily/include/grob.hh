@@ -48,8 +48,8 @@ protected:
 
   /* SCM data */
   SCM immutable_property_alist_;
-  SCM mutable_property_alist_;
-  SCM object_alist_;
+  Scheme_hash_table *mutable_property_dict_;
+  Scheme_hash_table *object_dict_;
 
   /*
     If this is a property, it accounts for 25% of the property
@@ -57,11 +57,11 @@ protected:
   */
   SCM interfaces_;
 
-  void substitute_object_links (SCM, SCM);
+  void substitute_object_links (SCM, Scheme_hash_table*);
   Real get_offset (Axis a) const;
   SCM try_callback (SCM, SCM);
-  SCM try_callback_on_alist (SCM *, SCM, SCM);
-  void internal_set_value_on_alist (SCM *alist, SCM sym, SCM val);
+  SCM try_callback_on_dict (Scheme_hash_table *, SCM, SCM);
+  void internal_set_value_on_dict (Scheme_hash_table *dict, SCM sym, SCM val);
 
 public:
 

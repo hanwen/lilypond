@@ -4,20 +4,21 @@
 
 #include <cstring>
 
-#include "main.hh"
 #include "input.hh"
-#include "pointer-group-interface.hh"
-#include "misc.hh"
-#include "paper-score.hh"
-#include "output-def.hh"
-#include "spanner.hh"
 #include "international.hh"
 #include "item.hh"
-#include "program-option.hh"
+#include "main.hh"
+#include "misc.hh"
+#include "output-def.hh"
+#include "paper-score.hh"
+#include "pointer-group-interface.hh"
 #include "profile.hh"
+#include "program-option.hh"
+#include "protected-scm.hh"
+#include "scm-hash.hh"
+#include "spanner.hh"
 #include "unpure-pure-container.hh"
 #include "warn.hh"
-#include "protected-scm.hh"
 
 Protected_scm grob_property_callback_stack (SCM_EOL);
 
@@ -94,9 +95,10 @@ Grob::instrumented_set_property (SCM sym, SCM v,
 SCM
 Grob::get_property_alist_chain (SCM def) const
 {
-  return scm_list_3 (mutable_property_alist_,
-                     immutable_property_alist_,
-                     def);
+  // TODO: This is unforunate: it would be nicer if we wouldn't have
+  // to create garbage _and_ not expose Scheme_hash_table.
+  return scm_list_3 (mutable_property_dict_->to_alist (),
+                     immutable_property_alist_, def);
 }
 
 extern void check_interfaces_for_property (Grob const *me, SCM sym);
@@ -104,13 +106,11 @@ extern void check_interfaces_for_property (Grob const *me, SCM sym);
 void
 Grob::internal_set_property (SCM sym, SCM v)
 {
-  internal_set_value_on_alist (&mutable_property_alist_,
-                               sym, v);
-
+  internal_set_value_on_dict (mutable_property_dict_, sym, v);
 }
 
 void
-Grob::internal_set_value_on_alist (SCM *alist, SCM sym, SCM v)
+Grob::internal_set_value_on_dict (Scheme_hash_table *dict, SCM sym, SCM v)
 {
   /* Perhaps we simply do the assq_set, but what the heck. */
   if (!is_live ())
@@ -126,7 +126,7 @@ Grob::internal_set_value_on_alist (SCM *alist, SCM sym, SCM v)
       check_interfaces_for_property (this, sym);
     }
 
-  *alist = scm_assq_set_x (*alist, sym, v);
+  dict->set (sym, v);
 }
 
 SCM
@@ -137,12 +137,11 @@ Grob::internal_get_property_data (SCM sym) const
     note_property_access (&grob_property_lookup_table, sym);
 #endif
 
-  SCM handle = scm_sloppy_assq (sym, mutable_property_alist_);
-  if (scm_is_true (handle))
-    return scm_cdr (handle);
+  SCM value;
+  if (mutable_property_dict_->try_retrieve (sym, &value))
+    return value;
 
-  handle = scm_sloppy_assq (sym, immutable_property_alist_);
-
+  SCM handle = scm_sloppy_assq (sym, immutable_property_alist_);
   if (do_internal_type_checking_global && scm_is_pair (handle))
     {
       SCM val = scm_cdr (handle);
@@ -181,7 +180,7 @@ Grob::internal_get_property (SCM sym) const
   if (ly_is_procedure (val))
     {
       Grob *me = ((Grob *)this);
-      val = me->try_callback_on_alist (&me->mutable_property_alist_, sym, val);
+      val = me->try_callback_on_dict (me->mutable_property_dict_, sym, val);
     }
 
   return val;
@@ -215,14 +214,14 @@ Grob::internal_get_maybe_pure_property (SCM sym, bool pure,
 }
 
 SCM
-Grob::try_callback_on_alist (SCM *alist, SCM sym, SCM proc)
+Grob::try_callback_on_dict (Scheme_hash_table *dict, SCM sym, SCM proc)
 {
   SCM marker = ly_symbol2scm ("calculation-in-progress");
   /*
     need to put a value in SYM to ensure that we don't get a
     cyclic call chain.
   */
-  *alist = scm_assq_set_x (*alist, sym, marker);
+  dict->set (sym, marker);
 
 #ifdef DEBUG
   if (debug_property_callbacks)
@@ -248,7 +247,7 @@ Grob::try_callback_on_alist (SCM *alist, SCM sym, SCM proc)
     {
       value = get_property_data (sym);
       if (scm_is_eq (value, marker))
-        *alist = scm_assq_remove_x (*alist, sym);
+        dict->remove (sym);
       else if (!scm_is_null (value))
         programming_error (_f ("%s.%s changed from inside callback",
                                name (), ly_symbol2string (sym)));
@@ -263,7 +262,7 @@ Grob::try_callback_on_alist (SCM *alist, SCM sym, SCM proc)
                     proc,
                     value);
 #endif
-      internal_set_value_on_alist (alist, sym, value);
+      internal_set_value_on_dict (dict, sym, value);
     }
 
   return value;
@@ -276,13 +275,13 @@ Grob::internal_set_object (SCM s, SCM v)
   if (!is_live ())
     return;
 
-  object_alist_ = scm_assq_set_x (object_alist_, s, v);
+  object_dict_->set (s, v);
 }
 
 void
 Grob::internal_del_property (SCM sym)
 {
-  mutable_property_alist_ = scm_assq_remove_x (mutable_property_alist_, sym);
+  mutable_property_dict_->remove (sym);
 }
 
 SCM
@@ -291,16 +290,14 @@ Grob::internal_get_object (SCM sym) const
   if (profile_property_accesses)
     note_property_access (&grob_property_lookup_table, sym);
 
-  SCM s = scm_sloppy_assq (sym, object_alist_);
-
-  if (scm_is_true (s))
+  SCM val;
+  if (object_dict_->try_retrieve (sym, &val))
     {
-      SCM val = scm_cdr (s);
       if (ly_is_procedure (val)
           || unsmob<Unpure_pure_container> (val))
         {
           Grob *me = ((Grob *)this);
-          val = me->try_callback_on_alist (&me->object_alist_, sym, val);
+          val = me->try_callback_on_dict (me->object_dict_, sym, val);
         }
 
       return val;
