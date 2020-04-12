@@ -114,13 +114,13 @@ Protected_scm key_hash;
 vector<SCM> int_to_key;
 
 SCM
-Scheme_hash_table::Iterator::key () const
+ly_symid2symbol (uint16_t id)
 {
-  return int_to_key[tab_->keys_[idx_]];
+  return int_to_key[id];
 }
 
 uint16_t
-Scheme_hash_table::hash (SCM key)
+ly_scm2symid (SCM key)
 {
   if (!key_hash.is_bound ())
     key_hash = scm_c_make_hash_table (1023);
@@ -141,6 +141,18 @@ Scheme_hash_table::hash (SCM key)
 
   scm_hashq_set_x (key_hash, key, scm_from_int (n));
   return n;
+}
+
+uint16_t
+Scheme_hash_table::Iterator::id () const
+{
+  return tab_->keys_[idx_];
+}
+
+SCM
+Scheme_hash_table::Iterator::key () const
+{
+  return ly_symid2symbol (id ());
 }
 
 SCM
@@ -186,17 +198,20 @@ Scheme_hash_table::find_entry (uint16_t key, size_t *idx) const
   return false;
 }
 
-Scheme_hash_table::Entry Scheme_hash_table::empty_entry;
-
 void
 Scheme_hash_table::remove (SCM k)
+{
+  remove (ly_symbol2symid (k));
+}
+
+void
+Scheme_hash_table::remove (uint16_t k16)
 {
   if (count_ == 0)
     {
       return;
     }
 
-  uint16_t k16 = hash (k);
   size_t start = 0;
   if (!find_entry (k16, &start))
     {
@@ -271,8 +286,13 @@ bool
 Scheme_hash_table::try_retrieve (SCM k, SCM *v)
 {
   assert (scm_is_symbol (k));
+  return try_retrieve (ly_symbol2symid (k), v);
+}
+
+bool
+Scheme_hash_table::try_retrieve (uint16_t k16, SCM *v)
+{
   size_t idx = 0;
-  uint16_t k16 = hash (k);
   if (find_entry (k16, &idx))
     {
       *v = values_[idx];
@@ -286,7 +306,12 @@ bool
 Scheme_hash_table::contains (SCM k) const
 {
   assert (scm_is_symbol (k));
-  uint16_t k16 = hash (k);
+  return contains (ly_symbol2symid (k));
+}
+
+bool
+Scheme_hash_table::contains (uint16_t k16) const
+{
   size_t unused;
   return find_entry (k16, &unused);
 }
@@ -295,9 +320,13 @@ void
 Scheme_hash_table::set (SCM k, SCM v)
 {
   assert (scm_is_symbol (k));
-  maybe_grow ();
-  uint16_t k16 = hash (k);
+  set (ly_symbol2symid (k), v);
+}
 
+void
+Scheme_hash_table::set (uint16_t k16, SCM v)
+{
+  maybe_grow ();
   internal_set (k16, v);
 }
 
@@ -306,7 +335,7 @@ Scheme_hash_table::merge_from (Scheme_hash_table const *src)
 {
   for (auto it = src->iter (); it.ok (); it.next ())
     {
-      set (it.key (), it.val ());
+      set (it.id (), it.val ());
     }
 }
 
@@ -326,8 +355,14 @@ Scheme_hash_table::internal_set (uint16_t k16, SCM v)
 SCM
 Scheme_hash_table::get (SCM k) const
 {
+  return get (ly_symbol2symid (k));
+}
+
+SCM
+Scheme_hash_table::get (uint16_t k16) const
+{
   size_t i;
-  if (find_entry (hash (k), &i))
+  if (find_entry (k16, &i))
     {
       return values_[i];
     }

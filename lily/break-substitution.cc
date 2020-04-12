@@ -307,6 +307,7 @@ bool
 Spanner::fast_substitute_grob_array (SCM sym,
                                      Grob_array *grob_array)
 {
+  uint16_t id = ly_symbol2symid (sym);
   int len = grob_array->size ();
   if (grob_array->ordered ())
     return false;
@@ -393,11 +394,11 @@ Spanner::fast_substitute_grob_array (SCM sym,
       System *l = sc->get_system ();
       set_break_substitution (l ? l->self_scm () : SCM_UNDEFINED);
 
-      SCM newval = sc->internal_get_object (sym);
+      SCM newval = sc->internal_get_object (id);
       if (!unsmob<Grob_array> (newval))
         {
           newval = Grob_array::make_array ();
-          sc->set_object (sym, newval);
+          sc->internal_set_object (id, newval);
         }
 
       Grob_array *new_array = unsmob<Grob_array> (newval);
@@ -444,13 +445,13 @@ substitute_object_dict (Scheme_hash_table *orig, Scheme_hash_table *dest)
 
   for (auto it = orig->iter (); it.ok (); it.next ())
     {
-      SCM sym = it.key ();
+      uint16_t id = it.id ();
       SCM val = it.val ();
 
       if (Grob_array *orig = unsmob<Grob_array> (val))
         {
           SCM newval;
-          if (!dest->try_retrieve (sym, &newval))
+          if (!dest->try_retrieve (id, &newval))
             {
               newval = Grob_array::make_array ();
             }
@@ -469,7 +470,7 @@ substitute_object_dict (Scheme_hash_table *orig, Scheme_hash_table *dest)
             for ly:grob? properties, SCM_UNDEFINED could leak out
             through ly:grob-property
           */
-          fresh->set (sym, val);
+          fresh->set (id, val);
         }
     }
 
@@ -484,6 +485,7 @@ Spanner::substitute_one_mutable_property (SCM sym, SCM val)
   if (grob_array && fast_substitute_grob_array (sym, grob_array))
     return;
 
+  uint16_t id = ly_symbol2symid (sym);
   for (vsize i = 0; i < broken_intos_.size (); i++)
     {
       Grob *sc = broken_intos_[i];
@@ -492,11 +494,11 @@ Spanner::substitute_one_mutable_property (SCM sym, SCM val)
 
       if (grob_array)
         {
-          SCM newval = sc->internal_get_object (sym);
+          SCM newval = sc->internal_get_object (id);
           if (!unsmob<Grob_array> (newval))
             {
               newval = Grob_array::make_array ();
-              sc->set_object (sym, newval);
+              sc->internal_set_object (id, newval);
             }
           Grob_array *new_arr = unsmob<Grob_array> (newval);
           new_arr->filter_map_assign (*grob_array, substitute_grob);
@@ -504,7 +506,7 @@ Spanner::substitute_one_mutable_property (SCM sym, SCM val)
       else
         {
           SCM newval = do_break_substitution (val);
-          sc->set_object (sym, newval);
+          sc->internal_set_object (id, newval);
         }
     }
 }

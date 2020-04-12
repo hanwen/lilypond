@@ -59,9 +59,9 @@ public:
   virtual std::string name () const;
   SCM type () const { return type_; }
   SCM get_property_alist (bool _mutable) const;
-  SCM internal_get_property (SCM sym) const;
-  void instrumented_set_property (SCM, SCM, const char *, int, const char *);
-  void internal_set_property (SCM sym, SCM val);
+  SCM internal_get_property (uint16_t sym) const;
+  void instrumented_set_property (uint16_t, SCM, const char *, int, const char *);
+  void internal_set_property (uint16_t sym, SCM val);
 
   // Needed in both Music and Stream_event
   // For technical reasons defined in lily/music.cc

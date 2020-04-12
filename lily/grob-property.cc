@@ -70,26 +70,26 @@ LY_DEFINE (ly_set_property_cache_callback, "ly:set-property-cache-callback",
 }
 
 void
-Grob::instrumented_set_property (SCM sym, SCM v,
-                                 char const *file,
-                                 int line,
+Grob::instrumented_set_property (uint16_t id, SCM v, char const *file, int line,
                                  char const *fun)
 {
 #ifdef DEBUG
   if (ly_is_procedure (modification_callback))
-    scm_apply_0 (modification_callback,
-                 scm_list_n (self_scm (),
-                             scm_from_locale_string (file),
-                             scm_from_int (line),
-                             scm_from_ascii_string (fun),
-                             sym, v, SCM_UNDEFINED));
+    {
+      SCM sym = ly_symid2symbol (id);
+
+      scm_apply_0 (modification_callback,
+                   scm_list_n (self_scm (), scm_from_locale_string (file),
+                               scm_from_int (line), scm_from_ascii_string (fun),
+                               sym, v, SCM_UNDEFINED));
+    }
 #else
   (void) file;
   (void) line;
   (void) fun;
 #endif
 
-  internal_set_property (sym, v);
+  internal_set_property (id, v);
 }
 
 SCM
@@ -104,13 +104,13 @@ Grob::get_property_alist_chain (SCM def) const
 extern void check_interfaces_for_property (Grob const *me, SCM sym);
 
 void
-Grob::internal_set_property (SCM sym, SCM v)
+Grob::internal_set_property (uint16_t id, SCM v)
 {
-  internal_set_value_on_dict (mutable_property_dict_, sym, v);
+  internal_set_value_on_dict (mutable_property_dict_, id, v);
 }
 
 void
-Grob::internal_set_value_on_dict (Scheme_hash_table *dict, SCM sym, SCM v)
+Grob::internal_set_value_on_dict (Scheme_hash_table *dict, uint16_t id, SCM v)
 {
   /* Perhaps we simply do the assq_set, but what the heck. */
   if (!is_live ())
@@ -118,6 +118,7 @@ Grob::internal_set_value_on_dict (Scheme_hash_table *dict, SCM sym, SCM v)
 
   if (do_internal_type_checking_global)
     {
+      SCM sym = ly_symid2symbol (id);
       if (!ly_is_procedure (v)
           && !unsmob<Unpure_pure_container> (v)
           && !scm_is_eq (v, ly_symbol2scm ("calculation-in-progress")))
@@ -126,21 +127,25 @@ Grob::internal_set_value_on_dict (Scheme_hash_table *dict, SCM sym, SCM v)
       check_interfaces_for_property (this, sym);
     }
 
-  dict->set (sym, v);
+  dict->set (id, v);
 }
 
 SCM
-Grob::internal_get_property_data (SCM sym) const
+Grob::internal_get_property_data (uint16_t id) const
 {
 #ifdef DEBUG
   if (profile_property_accesses)
-    note_property_access (&grob_property_lookup_table, sym);
+    {
+      SCM sym = ly_symid2symbol (id);
+      note_property_access (&grob_property_lookup_table, sym);
+    }
 #endif
 
   SCM value;
-  if (mutable_property_dict_->try_retrieve (sym, &value))
+  if (mutable_property_dict_->try_retrieve (id, &value))
     return value;
 
+  SCM sym = ly_symid2symbol (id);
   SCM handle = scm_sloppy_assq (sym, immutable_property_alist_);
   if (do_internal_type_checking_global && scm_is_pair (handle))
     {
@@ -156,13 +161,15 @@ Grob::internal_get_property_data (SCM sym) const
 }
 
 SCM
-Grob::internal_get_property (SCM sym) const
+Grob::internal_get_property (uint16_t id) const
 {
-  SCM val = get_property_data (sym);
+  SCM val = internal_get_property_data (id);
 
 #ifdef DEBUG
   if (scm_is_eq (val, ly_symbol2scm ("calculation-in-progress")))
     {
+      SCM sym = ly_symid2symbol (id);
+
       programming_error (to_string ("cyclic dependency: calculation-in-progress encountered for #'%s (%s)",
                                     ly_symbol2string (sym).c_str (),
                                     name ().c_str ()));//assert (1==0);
@@ -180,7 +187,7 @@ Grob::internal_get_property (SCM sym) const
   if (ly_is_procedure (val))
     {
       Grob *me = ((Grob *)this);
-      val = me->try_callback_on_dict (me->mutable_property_dict_, sym, val);
+      val = me->try_callback_on_dict (me->mutable_property_dict_, id, val);
     }
 
   return val;
@@ -188,9 +195,9 @@ Grob::internal_get_property (SCM sym) const
 
 /* Unlike internal_get_property, this function does no caching. Use it, therefore, with caution. */
 SCM
-Grob::internal_get_pure_property (SCM sym, vsize start, vsize end) const
+Grob::internal_get_pure_property (uint16_t id, vsize start, vsize end) const
 {
-  SCM val = internal_get_property_data (sym);
+  SCM val = internal_get_property_data (id);
   if (ly_is_procedure (val))
     return call_pure_function (val, scm_list_1 (self_scm ()), start, end);
 
@@ -198,7 +205,7 @@ Grob::internal_get_pure_property (SCM sym, vsize start, vsize end) const
     {
       // Do cache, if the function ignores 'start' and 'end'
       if (upc->is_unchanging ())
-        return internal_get_property (sym);
+        return internal_get_property (id);
       else
         return call_pure_function (val, scm_list_1 (self_scm ()), start, end);
     }
@@ -207,25 +214,31 @@ Grob::internal_get_pure_property (SCM sym, vsize start, vsize end) const
 }
 
 SCM
-Grob::internal_get_maybe_pure_property (SCM sym, bool pure,
-                                        vsize start, vsize end) const
+Grob::internal_get_maybe_pure_property (uint16_t id, bool pure, vsize start,
+                                        vsize end) const
 {
-  return pure ? internal_get_pure_property (sym, start, end) : internal_get_property (sym);
+  return pure ? internal_get_pure_property (id, start, end)
+              : internal_get_property (id);
 }
 
 SCM
-Grob::try_callback_on_dict (Scheme_hash_table *dict, SCM sym, SCM proc)
+Grob::try_callback_on_dict (Scheme_hash_table *dict, uint16_t id, SCM proc)
 {
   SCM marker = ly_symbol2scm ("calculation-in-progress");
   /*
     need to put a value in SYM to ensure that we don't get a
     cyclic call chain.
   */
-  dict->set (sym, marker);
+  dict->set (id, marker);
 
 #ifdef DEBUG
   if (debug_property_callbacks)
-    grob_property_callback_stack = scm_cons (scm_list_3 (self_scm (), sym, proc), grob_property_callback_stack);
+    {
+      SCM sym = ly_symid2symbol (id);
+
+      grob_property_callback_stack = scm_cons (
+        scm_list_3 (self_scm (), sym, proc), grob_property_callback_stack);
+    }
 #endif
 
   SCM value = SCM_EOL;
@@ -245,59 +258,59 @@ Grob::try_callback_on_dict (Scheme_hash_table *dict, SCM sym, SCM proc)
   // the callback in which case we cross fingers and continue silently.
   if (scm_is_eq (value, SCM_UNSPECIFIED))
     {
-      value = get_property_data (sym);
+      value = internal_get_property_data (id);
       if (scm_is_eq (value, marker))
-        dict->remove (sym);
+        dict->remove (id);
       else if (!scm_is_null (value))
-        programming_error (_f ("%s.%s changed from inside callback",
-                               name (), ly_symbol2string (sym)));
+        programming_error (_f ("%s.%s changed from inside callback", name (),
+                               ly_symbol2string (ly_symid2symbol (id))));
     }
   else
     {
 #ifdef DEBUG
       if (ly_is_procedure (cache_callback))
-        scm_call_4 (cache_callback,
-                    self_scm (),
-                    sym,
-                    proc,
-                    value);
+        scm_call_4 (cache_callback, self_scm (), ly_symid2symbol (id), sym,
+                    proc, value);
 #endif
-      internal_set_value_on_dict (dict, sym, value);
+      internal_set_value_on_dict (dict, id, value);
     }
 
   return value;
 }
 
 void
-Grob::internal_set_object (SCM s, SCM v)
+Grob::internal_set_object (uint16_t id, SCM v)
 {
   /* Perhaps we simply do the assq_set, but what the heck. */
   if (!is_live ())
     return;
 
-  object_dict_->set (s, v);
+  object_dict_->set (id, v);
 }
 
 void
-Grob::internal_del_property (SCM sym)
+Grob::internal_del_property (uint16_t id)
 {
-  mutable_property_dict_->remove (sym);
+  mutable_property_dict_->remove (id);
 }
 
 SCM
-Grob::internal_get_object (SCM sym) const
+Grob::internal_get_object (uint16_t id) const
 {
   if (profile_property_accesses)
-    note_property_access (&grob_property_lookup_table, sym);
+    {
+      SCM sym = ly_symid2symbol (id);
+      note_property_access (&grob_property_lookup_table, sym);
+    }
 
   SCM val;
-  if (object_dict_->try_retrieve (sym, &val))
+  if (object_dict_->try_retrieve (id, &val))
     {
       if (ly_is_procedure (val)
           || unsmob<Unpure_pure_container> (val))
         {
           Grob *me = ((Grob *)this);
-          val = me->try_callback_on_dict (me->object_dict_, sym, val);
+          val = me->try_callback_on_dict (me->object_dict_, id, val);
         }
 
       return val;

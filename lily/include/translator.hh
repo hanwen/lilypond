@@ -165,7 +165,7 @@ private:
   Translator &operator = (Translator const &) = delete;
 public:
 
-  SCM internal_get_property (SCM symbol) const;
+  SCM internal_get_property (uint16_t symbol) const;
 
   virtual Output_def *get_output_def () const;
   virtual Translator_group *get_daddy_translator ()const;

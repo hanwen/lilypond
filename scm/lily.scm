@@ -25,8 +25,6 @@
 ;; (define-public-macro _i (x) x)
 ;; Abbrv-PWR!
 
-(ly:benchmark-scheme-hash-table)
-
 (defmacro-public _i (x) x)
 
 ;;; Boolean thunk - are we integrating Guile V2.0 or higher with LilyPond?

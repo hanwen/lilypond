@@ -27,16 +27,6 @@
 */
 class Scheme_hash_table : public Smob<Scheme_hash_table>
 {
-  struct Entry {
-    // A free entry is indicated by NULL (which is assumed to never
-    // coincide with a symbol).  This is correct in GUILE 1.8. For 2.x
-    // and beyond, the GUILE API promises to use the Boehm GC, so
-    // values are considered pointers too.  Note that we take care to
-    // never pass NULL back to GUILE.
-    SCM key;
-    SCM val;
-  };
-
   SCM *values_;
   uint16_t *keys_;
   size_t count_;
@@ -45,8 +35,6 @@ class Scheme_hash_table : public Smob<Scheme_hash_table>
   void alloc (size_t);
   void maybe_grow();
   bool find_entry(uint16_t key, size_t *idx) const;
-  static uint16_t hash(SCM key);
-  static Entry empty_entry;
   void internal_set(uint16_t key, SCM val);
 public:
   class Iterator {
@@ -78,7 +66,7 @@ public:
       idx_++;
       skip();
     }
-
+    uint16_t id() const;
     SCM key() const;
     SCM val() const {
       return tab_->values_[idx_];
@@ -97,10 +85,15 @@ public:
   void merge_from(Scheme_hash_table const*);
   int print_smob (SCM, scm_print_state *) const;
   bool try_retrieve (SCM key, SCM *val);
+  bool try_retrieve (uint16_t key, SCM *val);
   bool contains (SCM key) const;
+  bool contains (uint16_t key) const;
   void set (SCM k, SCM v);
+  void set (uint16_t key, SCM);
   SCM get (SCM k) const;
+  SCM get (uint16_t k) const;
   void remove (SCM k);
+  void remove (uint16_t k);
   void operator = (Scheme_hash_table const &);
   SCM to_alist () const;
   SCM mark_smob () const;

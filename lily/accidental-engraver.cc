@@ -124,9 +124,8 @@ void
 Accidental_engraver::update_local_key_signature (SCM new_sig)
 {
   last_keysig_ = new_sig;
-  set_context_property_on_children (context (),
-                                    ly_symbol2scm ("localAlterations"),
-                                    new_sig);
+  set_context_property_on_children (
+    context (), ly_symbol2symid ("localAlterations"), new_sig);
 
   Context *trans = context ()->get_parent_context ();
 

@@ -64,6 +64,17 @@ scm_or_str2symbol (SCM s)
   return s;
 }
 
+uint16_t ly_scm2symid(SCM);
+SCM ly_symid2symbol(uint16_t);
+
+#define ly_symbol2symid(x) \
+  (__builtin_constant_p (x)                                             \
+   ? ({                                                                 \
+       static uint16_t cached = ly_scm2symid (scm_or_str2symbol (x)); \
+       cached;                                                          \
+     })                                                                 \
+  : ly_scm2symid (scm_or_str2symbol (x)))
+
 /* Using this trick we cache the value of scm_from_locale_symbol
    ("fooo") where "fooo" is a constant std::string. This is done at the
    cost of one static variable per ly_symbol2scm() use, and the cost
@@ -202,24 +213,24 @@ void ly_check_name (const std::string &cxx, const std::string &fname);
   LY_DEFINE_WITHOUT_DECL (CLASS ## FNAME, CLASS::FNAME, PRIMNAME, REQ, OPT, \
                           VAR, ARGLIST, DOCSTRING)
 
-#define get_property(x) internal_get_property (ly_symbol2scm (x))
+#define get_property(x) internal_get_property (ly_symbol2symid (x))
 #define get_pure_property(x,y,z) \
-  internal_get_pure_property (ly_symbol2scm (x), y, z)
+  internal_get_pure_property (ly_symbol2symid (x), y, z)
 #define get_maybe_pure_property(w,x,y,z) \
-  internal_get_maybe_pure_property (ly_symbol2scm (w), x, y, z)
-#define get_property_data(x) internal_get_property_data (ly_symbol2scm (x))
-#define get_object(x) internal_get_object (ly_symbol2scm (x))
-#define set_object(x, y) internal_set_object (ly_symbol2scm (x), y)
-#define del_property(x) internal_del_property (ly_symbol2scm (x))
+  internal_get_maybe_pure_property (ly_symbol2symid (w), x, y, z)
+#define get_property_data(x) internal_get_property_data (ly_symbol2symid (x))
+#define get_object(x) internal_get_object (ly_symbol2symid (x))
+#define set_object(x, y) internal_set_object (ly_symbol2symid (x), y)
+#define del_property(x) internal_del_property (ly_symbol2symid (x))
 
 #ifdef DEBUG
 /*
   TODO: include modification callback support here, perhaps
   through intermediate Grob::instrumented_set_property( .. __LINE__ ).
  */
-#define set_property(x, y) instrumented_set_property (ly_symbol2scm (x), y, __FILE__, __LINE__, __FUNCTION__)
+#define set_property(x, y) instrumented_set_property (ly_symbol2symid (x), y, __FILE__, __LINE__, __FUNCTION__)
 #else
-#define set_property(x, y) internal_set_property (ly_symbol2scm (x), y)
+#define set_property(x, y) internal_set_property (ly_symbol2symid (x), y)
 #endif
 
 #define LY_ASSERT_TYPE(pred, var, number)                                       \

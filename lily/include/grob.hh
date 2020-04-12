@@ -60,8 +60,8 @@ protected:
   void substitute_object_links (SCM, Scheme_hash_table*);
   Real get_offset (Axis a) const;
   SCM try_callback (SCM, SCM);
-  SCM try_callback_on_dict (Scheme_hash_table *, SCM, SCM);
-  void internal_set_value_on_dict (Scheme_hash_table *dict, SCM sym, SCM val);
+  SCM try_callback_on_dict (Scheme_hash_table *, uint16_t, SCM);
+  void internal_set_value_on_dict (Scheme_hash_table *dict, uint16_t id, SCM val);
 
 public:
 
@@ -106,17 +106,17 @@ public:
 
   /* Properties */
   SCM get_property_alist_chain (SCM) const;
-  SCM internal_get_property (SCM symbol) const;
-  SCM internal_get_property_data (SCM symbol) const;
-  SCM internal_get_pure_property (SCM symbol, vsize start, vsize end) const;
-  SCM internal_get_maybe_pure_property (SCM symbol, bool pure,
+  SCM internal_get_property (uint16_t symid) const;
+  SCM internal_get_property_data (uint16_t symbol) const;
+  SCM internal_get_pure_property (uint16_t symbol, vsize start, vsize end) const;
+  SCM internal_get_maybe_pure_property (uint16_t symbol, bool pure,
                                         vsize start, vsize end) const;
-  SCM internal_get_non_callback_marker_property_data (SCM symbol) const;
-  SCM internal_get_object (SCM symbol) const;
-  void internal_set_object (SCM sym, SCM val);
-  void internal_del_property (SCM symbol);
-  void instrumented_set_property (SCM, SCM, char const *, int, char const *);
-  void internal_set_property (SCM sym, SCM val);
+  SCM internal_get_non_callback_marker_property_data (uint16_t symbol) const;
+  SCM internal_get_object (uint16_t symbol) const;
+  void internal_set_object (uint16_t sym, SCM val);
+  void internal_del_property (uint16_t symbol);
+  void instrumented_set_property (uint16_t, SCM, char const *, int, char const *);
+  void internal_set_property (uint16_t sym, SCM val);
 
   /* causes */
   Stream_event *event_cause () const;

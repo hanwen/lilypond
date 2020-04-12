@@ -143,14 +143,14 @@ public:
   Context ();
 
   /* properties:  */
-  SCM internal_get_property (SCM name_sym) const;
+  SCM internal_get_property (uint16_t name_sym) const;
   SCM properties_as_alist () const;
   Context *where_defined (SCM name_sym, SCM *value) const;
   bool here_defined (SCM name_sym, SCM *value) const;
   void unset_property (SCM var_sym);
 
-  void instrumented_set_property (SCM, SCM, const char *, int, const char *);
-  void internal_set_property (SCM var_sym, SCM value);
+  void instrumented_set_property (uint16_t, SCM, const char *, int, const char *);
+  void internal_set_property (uint16_t var_sym, SCM value);
 
   Context *create_context (Context_def *, const std::string &, SCM);
   bool matches (SCM type, const std::string &id) const;
@@ -255,7 +255,7 @@ int measure_number (Context const *context);
 
 bool check_repeat_count_visibility (Context const *context, SCM count);
 
-void set_context_property_on_children (Context *trans, SCM sym, SCM val);
+void set_context_property_on_children (Context *trans, uint16_t id, SCM val);
 
 /* Shorthand for creating and broadcasting stream events. */
 #define send_stream_event(ctx, type, origin, ...)                       \

@@ -151,8 +151,9 @@ Prob::print_smob (SCM port, scm_print_state *) const
 }
 
 SCM
-Prob::internal_get_property (SCM sym) const
+Prob::internal_get_property (uint16_t id) const
 {
+  SCM sym = ly_symid2symbol (id);
 #ifdef DEBUG
   if (profile_property_accesses)
     note_property_access (&prob_property_lookup_table, sym);
@@ -171,14 +172,16 @@ Prob::internal_get_property (SCM sym) const
 
 /* We don't (yet) instrument probs */
 void
-Prob::instrumented_set_property (SCM sym, SCM val, const char *, int, const char *)
+Prob::instrumented_set_property (uint16_t id, SCM val, const char *, int,
+                                 const char *)
 {
-  internal_set_property (sym, val);
+  internal_set_property (id, val);
 }
 
 void
-Prob::internal_set_property (SCM sym, SCM val)
+Prob::internal_set_property (uint16_t id, SCM val)
 {
+  SCM sym = ly_symid2symbol (id);
   if (do_internal_type_checking_global)
     type_check_assignment (sym, val);
 

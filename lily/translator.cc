@@ -75,9 +75,9 @@ Translator::protect_event (SCM ev)
 }
 
 SCM
-Translator::internal_get_property (SCM sym) const
+Translator::internal_get_property (uint16_t id) const
 {
-  return daddy_context_->internal_get_property (sym);
+  return daddy_context_->internal_get_property (id);
 }
 
 void

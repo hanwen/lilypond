@@ -563,19 +563,22 @@ Context::here_defined (SCM sym, SCM *value) const
   return SCM_EOL when not found.
 */
 SCM
-Context::internal_get_property (SCM sym) const
+Context::internal_get_property (uint16_t id) const
 {
 #ifdef DEBUG
   if (profile_property_accesses)
-    note_property_access (&context_property_lookup_table, sym);
+    {
+      SCM sym = ly_symid2symbol (id);
+      note_property_access (&context_property_lookup_table, sym);
+    }
 #endif
 
   SCM val = SCM_EOL;
-  if (properties_dict ()->try_retrieve (sym, &val))
+  if (properties_dict ()->try_retrieve (id, &val))
     return val;
 
   if (daddy_context_)
-    return daddy_context_->internal_get_property (sym);
+    return daddy_context_->internal_get_property (id);
 
   return val;
 }
@@ -660,21 +663,23 @@ Context::add_alias (SCM sym)
 
 /* we don't (yet) instrument context properties */
 void
-Context::instrumented_set_property (SCM sym, SCM val, const char *, int, const char *)
+Context::instrumented_set_property (uint16_t id, SCM val, const char *, int,
+                                    const char *)
 {
-  internal_set_property (sym, val);
+  internal_set_property (id, val);
 }
 
 void
-Context::internal_set_property (SCM sym, SCM val)
+Context::internal_set_property (uint16_t id, SCM val)
 {
-  bool type_check_ok = type_check_assignment (sym, val, ly_symbol2scm ("translation-type?"));
+  bool type_check_ok = type_check_assignment (
+    ly_symid2symbol (id), val, ly_symbol2scm ("translation-type?"));
 
   if (do_internal_type_checking_global)
     assert (type_check_ok);
 
   if (type_check_ok)
-    properties_dict ()->set (sym, val);
+    properties_dict ()->set (id, val);
 }
 
 /*
@@ -917,13 +922,13 @@ measure_number (Context const *context)
 }
 
 void
-set_context_property_on_children (Context *trans, SCM sym, SCM val)
+set_context_property_on_children (Context *trans, uint16_t id, SCM val)
 {
-  trans->set_property (sym, ly_deep_copy (val));
+  trans->internal_set_property (id, ly_deep_copy (val));
   for (SCM p = trans->children_contexts (); scm_is_pair (p); p = scm_cdr (p))
     {
       Context *trg = unsmob<Context> (scm_car (p));
-      set_context_property_on_children (trg, sym, ly_deep_copy (val));
+      set_context_property_on_children (trg, id, ly_deep_copy (val));
     }
 }
 

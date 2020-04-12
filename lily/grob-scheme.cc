@@ -95,7 +95,8 @@ LY_DEFINE (ly_grob_pure_property, "ly:grob-pure-property",
   if (SCM_UNBNDP (val))
     val = SCM_EOL;
 
-  SCM retval = sc->internal_get_pure_property (sym, scm_to_int (beg), scm_to_int (end));
+  SCM retval = sc->internal_get_pure_property (
+    ly_symbol2symid (sym), scm_to_int (beg), scm_to_int (end));
   if (scm_is_null (retval))
     retval = val;
 
@@ -165,7 +166,7 @@ LY_DEFINE (ly_grob_object, "ly:grob-object",
   LY_ASSERT_SMOB (Grob, grob, 1);
   LY_ASSERT_TYPE (ly_is_symbol, sym, 2);
 
-  return sc->internal_get_object (sym);
+  return sc->internal_get_object (ly_symbol2symid (sym));
 }
 
 LY_DEFINE (ly_grob_set_object_x, "ly:grob-set-object!",
@@ -181,7 +182,7 @@ LY_DEFINE (ly_grob_set_object_x, "ly:grob-set-object!",
   return SCM_UNSPECIFIED;
 }
 
-/* TODO: make difference between scaled and unscalead variable in
+/* TODO: make difference between scaled and unscaled variable in
    calling (i.e different funcs.) */
 LY_DEFINE (ly_grob_layout, "ly:grob-layout",
            1, 0, 0, (SCM grob),
