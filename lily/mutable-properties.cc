@@ -19,20 +19,18 @@
 
 #include "mutable-properties.hh"
 
-Mutable_properties::Mutable_properties () { alist_ = SCM_EOL; }
+Mutable_properties::Mutable_properties (vsize sz) { entries_.reserve (sz); }
 
 void
 Mutable_properties::clear ()
 {
-  alist_ = SCM_EOL;
+  entries_.resize (0);
 }
 
 void
 Mutable_properties::swap (Mutable_properties *other)
 {
-  SCM a = alist_;
-  alist_ = other->alist_;
-  other->alist_ = a;
+  std::swap (entries_, other->entries_);
 }
 
 void
@@ -45,35 +43,39 @@ Mutable_properties::merge_from (Mutable_properties const &src)
 }
 
 bool
-Mutable_properties::try_retrieve (SCM key, SCM *val) const
+Mutable_properties::try_retrieve (SCM k, SCM *v) const
 {
-  SCM entry = scm_assq (key, alist_);
-  if (!scm_is_pair (entry))
+  for (vsize i = 0; i < size (); i++)
     {
-      return false;
-    }
-
-  *val = scm_cdr (entry);
-  return true;
-}
-
-bool
-Mutable_properties::contains (SCM key) const
-{
-  for (auto it = iter (); it.ok (); it.next ())
-    {
-      if (SCM_EQ_P (it.key (), key))
+      if (SCM_EQ_P (key (i), k))
         {
+          *v = val (i);
           return true;
         }
     }
   return false;
 }
 
+bool
+Mutable_properties::contains (SCM key) const
+{
+  SCM unused;
+  return try_retrieve (key, &unused);
+}
+
 void
 Mutable_properties::set (SCM k, SCM v)
 {
-  alist_ = scm_assq_set_x (alist_, k, v);
+  for (vsize i = 0; i < size (); i++)
+    {
+      if (SCM_EQ_P (key (i), k))
+        {
+          val (i) = v;
+          break;
+        }
+    }
+  entries_.push_back (k);
+  entries_.push_back (v);
 }
 
 SCM
@@ -87,5 +89,39 @@ Mutable_properties::get (SCM k) const
 void
 Mutable_properties::remove (SCM k)
 {
-  alist_ = scm_assq_remove_x (alist_, k);
+  if (size () == 0)
+    return;
+
+  for (vsize i = 0; i < size (); i++)
+    {
+      if (SCM_EQ_P (key (i), k))
+        {
+          size_t last = size () - 1;
+          key (i) = key (last);
+          val (i) = val (last);
+          entries_.resize (last * 2);
+          return;
+        }
+    }
+}
+
+void
+Mutable_properties::mark () const
+{
+  for (vsize i = 0; i < size (); i++)
+    {
+      scm_gc_mark (key (i));
+      scm_gc_mark (val (i));
+    }
+}
+
+SCM
+Mutable_properties::to_alist () const
+{
+  SCM result = SCM_EOL;
+  for (vsize i = 0; i < size (); i++)
+    {
+      result = scm_acons (key (i), val (i), result);
+    }
+  return result;
 }

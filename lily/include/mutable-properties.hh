@@ -20,42 +20,63 @@
 #ifndef MUTABLE_PROPERTIES_HH
 #define MUTABLE_PROPERTIES_HH
 
+#include <vector>
+
 #include "lily-guile.hh"
 
 class Mutable_properties
 {
-  SCM alist_;
+  std::vector<SCM> entries_;
 
   bool find_entry(SCM key, size_t *idx) const;
+  SCM key(size_t i) const {
+    return entries_[2*i];
+  }
+  SCM& key(size_t i) {
+    return entries_[2*i];
+  }
+  SCM& val(size_t i) {
+    return entries_[2*i+1];
+  }
+  SCM val(size_t i) const {
+    return entries_[2*i+1];
+  }
 public:
   class Iterator {
-    SCM p_;
+    Mutable_properties const* props_;
+    size_t i_;
+
     Iterator(Mutable_properties const& t) {
-      p_ = t.alist_;
+      props_ = &t;
+      i_ = 0;
     }
     friend class Mutable_properties;
+
   public:
     bool ok() const {
-      return scm_is_pair(p_);
+      return i_ < props_->size();
     }
 
     void next() {
-      p_ = scm_cdr(p_);
+      i_++;
     }
 
     SCM key() {
-      return scm_caar(p_);
+      return props_->key(i_);
     }
 
     SCM val() {
-      return scm_cdar(p_);
+      return props_->val(i_);
     }
   };
   Iterator iter() const {
     return Iterator(*this);
   }
 
-  Mutable_properties();
+  size_t size() const {
+    return entries_.size() / 2;
+  }
+  Mutable_properties(vsize sz = 0);
   void clear();
   void swap(Mutable_properties*);
   void merge_from(Mutable_properties const &);
@@ -64,10 +85,8 @@ public:
   void set (SCM k, SCM v);
   SCM get (SCM k) const;
   void remove (SCM k);
-  void mark() const {
-    scm_gc_mark(alist_);
-  }
-  SCM to_alist () const { return alist_; }
+  void mark() const;
+  SCM to_alist () const;
 };
 
 #endif /* MUTABLE_PROPERTIES_HH */

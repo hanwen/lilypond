@@ -95,7 +95,7 @@ Grob::Grob (SCM basicprops)
 }
 
 Grob::Grob (Grob const &s)
-  : Smob<Grob> ()
+  : Smob<Grob> (), mutable_property_dict_ (s.mutable_property_dict_.size ())
 {
   original_ = (Grob *) & s;
 
